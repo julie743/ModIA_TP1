@@ -4,6 +4,8 @@ from tqdm import tqdm #used to generate progress bar during training
 
 import torch
 import torch.optim as optim 
+import torch.nn as nn
+
 from torch.utils.tensorboard import SummaryWriter
 from  torchvision.utils import make_grid #to generate image grids, will be used in tensorboard 
 
@@ -14,19 +16,24 @@ from unet import UNet
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def train(net, optimizer, loader, epochs=5, writer=None):
-    criterion = ...
+    criterion = nn.MSELoss() # on est en regression donc le critère est la MSE
     for epoch in range(epochs):
         running_loss = []
         t = tqdm(loader)
         for x, y in t: # x: black and white image, y: colored image 
-            ...
-            ...
-            ...
-            ...
-            ...
-            ...
-            ...
-            ...
+            running_loss = []
+            t = tqdm(loader) #barre d'avancée d'exécution
+            for x, y in t: #on prend batch par batch 
+                x, y = x.to(device), y.to(device) #envoyer sur le gpu ou cpu(device)
+                outputs = net(x) #réseau qu'on a défini précédemment sur l'entrée x 
+                loss = criterion(outputs, y) #fonction perte entre la préditction (output) et la sortie réelle
+                running_loss.append(loss.item()) #ajout de la valeur de la fonction perte 
+                optimizer.zero_grad() #met à 0 les différents gradients (pour tous les batchs) 
+                loss.backward() #backward phase
+                optimizer.step() #Performs a single optimization step (parameter update).
+                t.set_description(f'training loss: {mean(running_loss)}') #affichage 
+            writer.add_scalar("training loss", mean(running_loss), epoch)
+
         if writer is not None:
             #Logging loss in tensorboard
             writer.add_scalar('training loss', mean(running_loss), epoch)
@@ -46,17 +53,18 @@ def train(net, optimizer, loader, epochs=5, writer=None):
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--exp_name', type=str, default = 'Colorize', help='experiment name')
-    parser.add_argument('--data_path', ...)
-    parser.add_argument('--batch_size'...)
-    parser.add_argument('--epochs'...)
-    parser.add_argument('--lr'...)
+    parser.add_argument('--data_path', type=str, default = './landscapes', help='data path')
+    parser.add_argument('--batch_size', type=int, default =32, help='size of batch')
+    parser.add_argument('--epochs', type=int, default =50, help='number of epochs')
+    parser.add_argument('--lr', type=float, default =1e-2, help='learning rate')
 
-    exp_name = ...
-    args = ...
-    data_path = ...
-    batch_size = ...
-    epochs = ...
-    lr = ...
+    args = parser.parse_args()
+    exp_name =  args.exp_name
+    data_path = args.data_path
+    batch_size = args.batch_size
+    epochs = args.epochs
+    lr = args.lr
+
     unet = UNet().to(device)
     loader = get_colorized_dataset_loader(path=data_path, 
                                         batch_size=batch_size, 
